@@ -1,6 +1,7 @@
 /*
-  zip_name_locate.c -- get index by name
-  Copyright (C) 1999-2007 Dieter Baron and Thomas Klausner
+  zip_ftell.c -- obtain location in file within zip archive
+  Copyright (C) 1999-2013 Dieter Baron and Thomas Klausner
+  Original implementation contributed by Jim Dovey.
 
   This file is part of libzip, a library to manipulate ZIP archives.
   The authors can be contacted at <libzip@nih.at>
@@ -31,66 +32,13 @@
   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-
-
-#include <string.h>
-
 #include "zipint.h"
 
-#if defined(_MSC_VER)
-# define strdup _strdup
-# define fseeko fseek
-# define ftello ftell
-# define fileno _fileno
-# define strcasecmp _stricmp
-#endif
-
-
-
-ZIP_EXTERN int
-zip_name_locate(struct zip *za, const char *fname, int flags)
+ZIP_EXTERN long
+zip_ftell(struct zip_file* zf)
 {
-    return _zip_name_locate(za, fname, flags, &za->error);
-}
-
-
-
-int
-_zip_name_locate(struct zip *za, const char *fname, int flags,
-		 struct zip_error *error)
-{
-    int (*cmp)(const char *, const char *);
-    const char *fn, *p;
-    int i, n;
-
-    if (fname == NULL) {
-	_zip_error_set(error, ZIP_ER_INVAL, 0);
-	return -1;
-    }
+    if (!zf)
+        return -1;
     
-    cmp = (flags & ZIP_FL_NOCASE) ? strcasecmp : strcmp;
-
-    n = (flags & ZIP_FL_UNCHANGED) ? za->cdir->nentry : za->nentry;
-    for (i=0; i<n; i++) {
-	if (flags & ZIP_FL_UNCHANGED)
-	    fn = za->cdir->entry[i].filename;
-	else
-	    fn = _zip_get_name(za, i, flags, error);
-
-	/* newly added (partially filled) entry */
-	if (fn == NULL)
-	    continue;
-	
-	if (flags & ZIP_FL_NODIR) {
-	    p = strrchr(fn, '/');
-	    if (p)
-		fn = p+1;
-	}
-
-	if (cmp(fname, fn) == 0)
-	    return i;
-    }
-
-    _zip_error_set(error, ZIP_ER_NOENT, 0);
-    return -1;
+    return zf->file_fpos;
 }

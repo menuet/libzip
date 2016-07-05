@@ -1,5 +1,5 @@
 /*
-  zip_name_locate.c -- get index by name
+  zip_entry_new.c -- create and init struct zip_entry
   Copyright (C) 1999-2007 Dieter Baron and Thomas Klausner
 
   This file is part of libzip, a library to manipulate ZIP archives.
@@ -33,64 +33,46 @@
 
 
 
-#include <string.h>
+#include <stdlib.h>
 
 #include "zipint.h"
 
-#if defined(_MSC_VER)
-# define strdup _strdup
-# define fseeko fseek
-# define ftello ftell
-# define fileno _fileno
-# define strcasecmp _stricmp
-#endif
-
 
 
-ZIP_EXTERN int
-zip_name_locate(struct zip *za, const char *fname, int flags)
+struct zip_entry *
+_zip_entry_new(struct zip *za)
 {
-    return _zip_name_locate(za, fname, flags, &za->error);
-}
-
-
-
-int
-_zip_name_locate(struct zip *za, const char *fname, int flags,
-		 struct zip_error *error)
-{
-    int (*cmp)(const char *, const char *);
-    const char *fn, *p;
-    int i, n;
-
-    if (fname == NULL) {
-	_zip_error_set(error, ZIP_ER_INVAL, 0);
-	return -1;
-    }
-    
-    cmp = (flags & ZIP_FL_NOCASE) ? strcasecmp : strcmp;
-
-    n = (flags & ZIP_FL_UNCHANGED) ? za->cdir->nentry : za->nentry;
-    for (i=0; i<n; i++) {
-	if (flags & ZIP_FL_UNCHANGED)
-	    fn = za->cdir->entry[i].filename;
-	else
-	    fn = _zip_get_name(za, i, flags, error);
-
-	/* newly added (partially filled) entry */
-	if (fn == NULL)
-	    continue;
-	
-	if (flags & ZIP_FL_NODIR) {
-	    p = strrchr(fn, '/');
-	    if (p)
-		fn = p+1;
+    struct zip_entry *ze;
+    if (!za) {
+	ze = (struct zip_entry *)malloc(sizeof(struct zip_entry));
+	if (!ze) {
+	    _zip_error_set(&za->error, ZIP_ER_MEMORY, 0);
+	    return NULL;
 	}
-
-	if (cmp(fname, fn) == 0)
-	    return i;
+    }
+    else {
+	if (za->nentry >= za->nentry_alloc-1) {
+	    za->nentry_alloc += 16;
+	    za->entry = (struct zip_entry *)realloc(za->entry,
+						    sizeof(struct zip_entry)
+						    * za->nentry_alloc);
+	    if (!za->entry) {
+		_zip_error_set(&za->error, ZIP_ER_MEMORY, 0);
+		return NULL;
+	    }
+	}
+	ze = za->entry+za->nentry;
     }
 
-    _zip_error_set(error, ZIP_ER_NOENT, 0);
-    return -1;
+    ze->state = ZIP_ST_UNCHANGED;
+
+    ze->ch_filename = NULL;
+    ze->ch_comment = NULL;
+    ze->ch_comment_len = -1;
+    ze->source = NULL;
+
+    if (za)
+	za->nentry++;
+
+    return ze;
 }

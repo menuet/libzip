@@ -1,5 +1,5 @@
 /*
-  zip_name_locate.c -- get index by name
+  zip_free.c -- free struct zip
   Copyright (C) 1999-2007 Dieter Baron and Thomas Klausner
 
   This file is part of libzip, a library to manipulate ZIP archives.
@@ -33,64 +33,49 @@
 
 
 
-#include <string.h>
+#include <stdlib.h>
 
 #include "zipint.h"
 
-#if defined(_MSC_VER)
-# define strdup _strdup
-# define fseeko fseek
-# define ftello ftell
-# define fileno _fileno
-# define strcasecmp _stricmp
-#endif
-
 
 
-ZIP_EXTERN int
-zip_name_locate(struct zip *za, const char *fname, int flags)
+/* _zip_free:
+   frees the space allocated to a zipfile struct, and closes the
+   corresponding file. */
+
+void
+_zip_free(struct zip *za)
 {
-    return _zip_name_locate(za, fname, flags, &za->error);
-}
+    int i;
 
-
+    if (za == NULL)
+	return;
 
-int
-_zip_name_locate(struct zip *za, const char *fname, int flags,
-		 struct zip_error *error)
-{
-    int (*cmp)(const char *, const char *);
-    const char *fn, *p;
-    int i, n;
+    if (za->zn)
+	free(za->zn);
 
-    if (fname == NULL) {
-	_zip_error_set(error, ZIP_ER_INVAL, 0);
-	return -1;
-    }
-    
-    cmp = (flags & ZIP_FL_NOCASE) ? strcasecmp : strcmp;
+    if (za->zp)
+	fclose(za->zp);
 
-    n = (flags & ZIP_FL_UNCHANGED) ? za->cdir->nentry : za->nentry;
-    for (i=0; i<n; i++) {
-	if (flags & ZIP_FL_UNCHANGED)
-	    fn = za->cdir->entry[i].filename;
-	else
-	    fn = _zip_get_name(za, i, flags, error);
+    _zip_cdir_free(za->cdir);
 
-	/* newly added (partially filled) entry */
-	if (fn == NULL)
-	    continue;
-	
-	if (flags & ZIP_FL_NODIR) {
-	    p = strrchr(fn, '/');
-	    if (p)
-		fn = p+1;
+    if (za->entry) {
+	for (i=0; i<za->nentry; i++) {
+	    _zip_entry_free(za->entry+i);
 	}
-
-	if (cmp(fname, fn) == 0)
-	    return i;
+	free(za->entry);
     }
 
-    _zip_error_set(error, ZIP_ER_NOENT, 0);
-    return -1;
+    for (i=0; i<za->nfile; i++) {
+	if (za->file[i]->error.zip_err == ZIP_ER_OK) {
+	    _zip_error_set(&za->file[i]->error, ZIP_ER_ZIPCLOSED, 0);
+	    za->file[i]->za = NULL;
+	}
+    }
+
+    free(za->file);
+    
+    free(za);
+
+    return;
 }

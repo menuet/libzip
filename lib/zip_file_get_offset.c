@@ -1,6 +1,6 @@
 /*
   zip_file_get_offset.c -- get offset of file data in archive.
-  Copyright (C) 1999-2015 Dieter Baron and Thomas Klausner
+  Copyright (C) 1999-2007 Dieter Baron and Thomas Klausner
 
   This file is part of libzip, a library to manipulate ZIP archives.
   The authors can be contacted at <libzip@nih.at>
@@ -31,15 +31,25 @@
   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include "zipint.h"
 
+#if defined(_MSC_VER)
+# define strdup _strdup
+# define fseeko fseek
+# define ftello ftell
+# define fileno _fileno
+#endif
+
+
 
 /* _zip_file_get_offset(za, ze):
    Returns the offset of the file data for entry ze.
@@ -47,27 +57,39 @@
    On error, fills in za->error and returns 0.
 */
 
-zip_uint64_t
-_zip_file_get_offset(const zip_t *za, zip_uint64_t idx, zip_error_t *error)
+unsigned int
+_zip_file_get_offset(struct zip *za, int idx)
 {
-    zip_uint64_t offset;
-    zip_int32_t size;
+    struct zip_dirent de;
+    unsigned int offset;
 
-    offset = za->entry[idx].orig->offset;
+    offset = za->cdir->entry[idx].offset;
 
-    if (zip_source_seek(za->src, (zip_int64_t)offset, SEEK_SET) < 0) {
-	_zip_error_set_from_source(error, za->src);
+    if (fseeko(za->zp, offset, SEEK_SET) != 0) {
+	_zip_error_set(&za->error, ZIP_ER_SEEK, errno);
 	return 0;
     }
 
-    /* TODO: cache? */
-    if ((size=_zip_dirent_size(za->src, ZIP_EF_LOCAL, error)) < 0)
+    if (_zip_dirent_read(&de, za->zp, NULL, NULL, 1, &za->error) != 0)
 	return 0;
 
-    if (offset+(zip_uint32_t)size > ZIP_INT64_MAX) {
-        zip_error_set(error, ZIP_ER_SEEK, EFBIG);
-        return 0;
-    }
+    offset += LENTRYSIZE + de.filename_len + de.extrafield_len;
+
+    _zip_dirent_finalize(&de);
+
+    return offset;
+}
+
+/* JCD added */
+unsigned int
+_zip_file_get_offset_safe(struct zip* za, int idx)
+{
+    off_t curoff;
+    unsigned int offset;
     
-    return offset + (zip_uint32_t)size;
+    curoff = ftello(za->zp);
+    offset = _zip_file_get_offset(za, idx);
+    fseeko(za->zp, curoff, SEEK_SET);
+    
+    return offset;
 }
