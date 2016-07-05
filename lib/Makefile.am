@@ -10,19 +10,7 @@ nodist_libinclude_HEADERS = zipconf.h
 libzip_la_LDFLAGS=-no-undefined -version-info 4:0:0
 libzip_la_LIBADD=@LTLIBOBJS@
 
-if WIN32_HOST
-IO_SOURCES=\
-	zip_source_win32a.c \
-	zip_source_win32handle.c \
-	zip_source_win32utf8.c \
-	zip_source_win32w.c
-else
-IO_SOURCES=\
-	zip_source_file.c
-endif
-
 libzip_la_SOURCES=\
-	${IO_SOURCES} \
 	zip_add.c \
 	zip_add_dir.c \
 	zip_add_entry.c \
@@ -70,7 +58,6 @@ libzip_la_SOURCES=\
 	zip_get_num_entries.c \
 	zip_get_num_files.c \
 	zip_get_name.c \
-	zip_hash.c \
 	zip_io_util.c \
 	zip_memdup.c \
 	zip_name_locate.c \
@@ -92,6 +79,7 @@ libzip_la_SOURCES=\
 	zip_source_crc.c \
 	zip_source_deflate.c \
 	zip_source_error.c \
+	zip_source_file.c \
 	zip_source_filep.c \
 	zip_source_free.c \
 	zip_source_function.c \
@@ -127,7 +115,6 @@ BUILT_SOURCES=zipconf.h
 CLEANFILES=	${BUILT_SOURCES}
 
 EXTRA_DIST=	CMakeLists.txt \
-		compat.h \
 		make_zip_err_str.sh \
 		make_zipconf.sh \
 		zip_source_win32a.c \
