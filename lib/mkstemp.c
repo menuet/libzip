@@ -45,7 +45,9 @@
 #include <stdlib.h>
 
 #include <sys/types.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #ifndef O_BINARY
 #define O_BINARY 0
